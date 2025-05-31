@@ -28,40 +28,45 @@ u64 get_ram_size() {
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 // I know this algorithm is very naive, but busy_memory_regions_amount most likely won't exceed 6
-error_t allocate_phisical_memory_region(void* dt, phisical_memory_region_t busy_memory_regions[],
-										u64 busy_memory_regions_amount, u64 allocation_size, u64 aligment,
-										phisical_memory_region_t* pmrOUT) {
-	u64 unavalible_regions_in_dt_amount = 0;
+error_t allocate_phisical_memory_region(void* dt, u64 size, u64 align, phisical_memory_region_t* pmrOUT) {
+	static phisical_memory_region_t busy_mem_regions[16] = {0};
+	static u64 busy_regions_end_idx = 0;
+	if(busy_regions_end_idx >= sizeof(busy_mem_regions) / sizeof(busy_mem_regions[0]))
+		return ERR_CRITICAL_INTERNAL_FAILURE;
 	u64 unavalible_regions_amount = 0;
-	//TEST:
-	unavalible_regions_in_dt_amount = 1;
-	//!TEST
-	phisical_memory_region_t unavalible_regions[unavalible_regions_in_dt_amount + busy_memory_regions_amount];
-	if(busy_memory_regions)
-		memcpy(unavalible_regions, busy_memory_regions, busy_memory_regions_amount * sizeof(phisical_memory_region_t));
-	// TODO: read the rest of the unavalible memory regions from the dt
-	//TEST:
-	unavalible_regions[busy_memory_regions_amount] = (phisical_memory_region_t){.address = (void*)0x80000000, .size = 160 * 1024};
-	//!TEST
-	unavalible_regions_amount = unavalible_regions_in_dt_amount + busy_memory_regions_amount;
+	phisical_memory_region_t unavalible_regions[unavalible_regions_amount];
+	// TODO: read the rest of the unavalible memory regions and the region of kboot from the dt
 
-	void* curr_addr = (void*)align_up((u64)get_ram_start(), aligment);
+	void* curr_addr = (void*)align_up((u64)get_ram_start(), align);
 
-	while((curr_addr + allocation_size) < (get_ram_start() + get_ram_size())) {
+	while((curr_addr + size) < (get_ram_start() + get_ram_size())) {
 		bool overlap = false;
 		for(u64 i = 0; i < unavalible_regions_amount; ++i) {
 			void* region_start = unavalible_regions[i].address;
 			void* region_end = unavalible_regions[i].address + unavalible_regions[i].size;
-			if(MAX(curr_addr, region_start) < MIN(curr_addr + allocation_size, region_end)) {
+			if(MAX(curr_addr, region_start) < MIN(curr_addr + size, region_end)) {
 				curr_addr = region_end;
-				curr_addr = (void*)align_up((u64)curr_addr, aligment);
+				curr_addr = (void*)align_up((u64)curr_addr, align);
 				overlap = true;
 				break;
 			}
 		}
 		if(!overlap) {
-			*pmrOUT = (phisical_memory_region_t){.address = curr_addr, .size = allocation_size};
-			return ERR_NONE;
+			for(u64 i = 0; i < busy_regions_end_idx; ++i) {
+				void* region_start = busy_mem_regions[i].address;
+				void* region_end = busy_mem_regions[i].address + busy_mem_regions[i].size;
+				if(MAX(curr_addr, region_start) < MIN(curr_addr + size, region_end)) {
+					curr_addr = region_end;
+					curr_addr = (void*)align_up((u64)curr_addr, align);
+					overlap = true;
+					break;
+				}
+			}
+			if(!overlap) {
+				*pmrOUT = (phisical_memory_region_t){.address = curr_addr, .size = size};
+				busy_mem_regions[busy_regions_end_idx++] = *pmrOUT;
+				return ERR_NONE;
+			}
 		}
 	}
 	return ERR_PHISICAL_MEMORY_FULL;
