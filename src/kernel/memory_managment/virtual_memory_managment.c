@@ -1,14 +1,15 @@
 #include "virtual_memory_managment.h"
+
 #include <stdbigos/csr.h>
 
 // ========================================
-//				  Private 
+//				  Private
 // ========================================
 
 typedef struct [[gnu::packed]] {
 	ppn_t page_table : 44;
 	u16 asid : 16;
-	virt_mem_scheme_t vms : 4;
+	u8 vms : 4;
 } reg_satp_t;
 static_assert(sizeof(reg_satp_t) == 8);
 
@@ -28,11 +29,11 @@ reg_satp_t read_satp(reg_t satp) {
 }
 
 // ========================================
-//				  Public 
+//				  Public
 // ========================================
 
 u16 virt_mem_get_max_asid() {
-	reg_satp_t satp_struct = {.vms = VMS_BARE, .asid = UINT16_MAX, .page_table = 0};
+	reg_satp_t satp_struct = {.vms = 0, .asid = UINT16_MAX, .page_table = 0};
 	volatile reg_t satp = write_satp(satp_struct);
 	CSR_WRITE(satp, satp);
 	satp = CSR_READ(satp);
@@ -40,7 +41,9 @@ u16 virt_mem_get_max_asid() {
 	return satp_struct.asid;
 }
 
-void virt_mem_set_satp(u16 asid, virt_mem_scheme_t vms, ppn_t page_table) {
-
+void virt_mem_set_satp(u16 asid, u8 vms, ppn_t page_table) {
+	reg_satp_t satp_struct = {.vms = vms, .asid = asid, .page_table = page_table};
+	volatile reg_t satp = write_satp(satp_struct);
+	CSR_WRITE(satp, satp);
 }
 
