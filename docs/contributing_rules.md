@@ -68,4 +68,4 @@ Ensure your code is properly formatted before submitting a pull request (use `sc
 - Use pull requests, no direct pushes to main.
 - Code must pass all checks before merging.
 - Code must be tested before merging.
-- At least 2 approvals required before merging.
+- At least 1 approval required before merging.
